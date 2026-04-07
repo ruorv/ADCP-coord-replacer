@@ -1,28 +1,26 @@
-# ADCP Coordinate Replacer / Замена координат ADCP
+# ADCP Coordinate Replacer / Обработчик координат профилографа
 
 **[English](#english) | [Русский](#русский)**
 
 ---
 
 <a name="english"></a>
-## 🇬🇧 English
+## English
 
 ### What it does
 
-The Teledyne RDI RiverRay ADCP records GPS coordinates directly into its ASCII output files. However, the built-in GPS can be inaccurate — especially in narrow channels, under dense vegetation, or when the DGPS signal is weak.
-
-This tool replaces the embedded coordinates in RiverRay ASCII files with precise coordinates from an external GPS track, matched by timestamp.
+Acoustic Doppler profilers (ADCP) embed GPS coordinates directly into their output files. When the instrument cannot get a GPS fix, it writes placeholder values (`30000.0000000`) instead of real coordinates. This tool replaces those placeholder coordinates with precise positions from an external GPS track, matched by timestamp.
 
 ### Features
 
-- Supports **GPX tracks** (Garmin, OsmAnd, and other GPS apps)
-- Supports **timestamped TXT** GPS tracks (`lat,lon,ISO8601time`)
-- Supports **point-ID TXT** files (`point_id,lat,lon`) — for fixed measurement stations
-- Processes **multiple instrument files** in one batch
-- Configurable **timezone** for GPS device and ADCP independently
-- **Track lag correction** (seconds, positive or negative) — compensates for clock offset between GPS and ADCP
+- Supports **GPX tracks** (Garmin and compatible devices)
+- Supports **timestamped TXT** tracks (`lat,lon,ISO8601time`)
+- Supports **point-ID TXT** files (`point_id,lat,lon`) for static stations
+- Batch processing of **multiple instrument files** at once
+- Independent **timezone** settings for GPS and instrument clocks
+- **Track lag correction** in seconds (positive or negative) to compensate for clock desync
 - Drag-and-drop file loading
-- No command line needed
+- Simple GUI, no command line required
 
 ### Requirements
 
@@ -31,93 +29,80 @@ This tool replaces the embedded coordinates in RiverRay ASCII files with precise
 
 ### Installation
 
-```bash
+```
 pip install customtkinter tkinterdnd2 pytz
 python app.py
 ```
 
-Or download the prebuilt **[Windows executable →](../../releases/latest)**
+Or download the prebuilt **[Windows executable](../../releases/latest)** — no Python needed.
 
-### Step-by-step usage
+### Instrument file format
 
-1. **Run** `app.py` or the `.exe`
-2. **Add GPS coordinate files** to the left panel (drag & drop, or click "Добавить")
-3. **Add ADCP instrument files** to the right panel
-4. **Set the timezone** for the GPS device and for the ADCP separately
-5. **Set track lag** if the GPS clock and ADCP clock are out of sync  
-   *(e.g. `-5` means GPS is 5 seconds behind the ADCP)*
-6. **Choose output folder and filename**
-7. **Click "Обработать"** (Process)
-
-When processing multiple instrument files, output files are named `output_1.txt`, `output_2.txt`, etc.
-
-### Input file formats
-
-#### GPS coordinate files
-
-**GPX** — standard GPS track. Export from Garmin Connect, OsmAnd, Strava, etc.
-
-Example from `examples/gps_track_example.gpx` (Organic Maps export):
-```xml
-<trkpt lat="61.665590" lon="50.835940">
-  <time>2025-05-03T09:51:10Z</time>
-</trkpt>
-```
-
-**TXT with timestamps** (`lat,lon,ISO8601time`):
-```
-61.665590,50.835940,2025-05-03T09:51:10Z
-61.665620,50.835980,2025-05-03T09:51:11Z
-```
-
-**TXT with point IDs** (`point_id,lat,lon`):
-```
-1,61.665590,50.835940
-2,61.665620,50.835980
-```
-Use this format when each transect has a fixed station number that matches the ADCP file.
-
-#### ADCP instrument files (RiverRay ASCII)
-
-Each measurement ensemble starts with a header line (date/time + point ID), followed by data lines. The tool replaces coordinates on the **second 5-column numeric line** of each ensemble:
+Each measurement block in the instrument file looks like this:
 
 ```
-25 5 3 7 29 38 23    28      1   -2.260   -1.910   98.160    4.380
-                                  ↑ lon     ↑ lat   ← these get replaced
+25 5 3 7 29 38 23  28  1  -2.260  -1.910  98.160  4.380
+25.11  -9.27  -1.13  0.14  0.00  0.00  0.00  0.00  3.97  3.76  3.63  4.02
+0.00         0.00         0.00         0.00         0.00
+30000.0000000 30000.0000000 -32768   -32768         0.0    ← coordinates here
+-0.0  -0.0  -0.0  0.0  0.0  0.0  0.0  0.30  2.85
+20 cm BT dB 0.46  0.150
+  0.30   60.09   215.46  ...
 ```
-Line format: `YY MM DD HH mm SS cs  point_id  channel  lon  lat  ...`
+
+The first line contains the timestamp (`YY MM DD HH mm SS cs`) and point ID. The coordinate line is the **second 5-column numeric line** in the block. When the built-in GPS has no fix, it contains `30000.0000000` as placeholder values — this tool replaces them with coordinates from the external GPS track.
+
+### Coordinate file formats
+
+**GPX** — standard GPS track exported from Garmin, OsmAnd, etc.
+
+**TXT timestamped:**
+```
+55.123456,48.654321,2025-05-15T10:23:45Z
+55.123490,48.654400,2025-05-15T10:23:46Z
+```
+
+**TXT point-ID:**
+```
+1,55.123456,48.654321
+2,55.124000,48.655000
+```
+
+### How to use
+
+1. Run `app.py` or the `.exe`
+2. Add **coordinate files** (GPX or TXT) to the left panel
+3. Add **instrument files** (TXT) to the right panel
+4. Set the correct **timezone** for GPS and instrument
+5. Set **track lag** if clocks are out of sync (e.g. `-5` means GPS is 5 s behind)
+6. Choose an output file
+7. Click **Обработать**
+
+When processing multiple instrument files, outputs are saved with `_1`, `_2`, ... suffixes.
 
 ### Matching logic
 
-Each ensemble timestamp is converted to UTC and matched to the nearest GPS point within **±10 seconds**. If no GPS point is found within this window, the original coordinates are left unchanged.
-
-### Examples
-
-See the `examples/` folder:
-- `gps_track_example.gpx` — real GPX track recorded with Organic Maps
-- `instrument_example.txt` — real RiverRay ASCII output file (excerpt)
+Each measurement timestamp is converted to UTC and matched against the GPS track. The closest GPS point within **±10 seconds** is used. If no match is found, the original line is kept unchanged.
 
 ---
 
 <a name="русский"></a>
-## 🇷🇺 Русский
+## Русский
 
 ### Назначение
 
-Профилограф Teledyne RDI RiverRay ADCP записывает GPS-координаты непосредственно в ASCII-файлы выходных данных. Однако встроенный GPS может давать неточные результаты — особенно в узких протоках, под густой растительностью или при слабом сигнале DGPS.
-
-Эта программа заменяет встроенные координаты в ASCII-файлах RiverRay на точные координаты из внешнего GPS-трека, сопоставляя их по времени.
+Акустические доплеровские профилографы (ADCP) записывают GPS-координаты непосредственно в выходные файлы. Если прибор не поймал сигнал GPS, вместо координат записываются значения-заглушки (`30000.0000000`). Эта программа заменяет такие заглушки на точные координаты из внешнего GPS-трека, сопоставляя записи по времени.
 
 ### Возможности
 
-- Поддержка **GPX-треков** (Garmin, OsmAnd и другие GPS-приложения)
+- Поддержка **GPX-треков** (Garmin и совместимые устройства)
 - Поддержка **TXT-треков с временными метками** (`lat,lon,ISO8601time`)
-- Поддержка **TXT-файлов по номерам точек** (`point_id,lat,lon`) — для фиксированных створов
+- Поддержка **TXT-файлов по номерам точек** (`point_id,lat,lon`) для стационарных наблюдений
 - Пакетная обработка **нескольких файлов прибора** за один раз
 - Независимая настройка **часового пояса** для GPS и прибора
-- **Коррекция лага трека** (в секундах, положительная или отрицательная) — компенсирует рассинхронизацию часов GPS и ADCP
+- **Коррекция лага трека** в секундах (положительная или отрицательная) для компенсации рассинхронизации часов
 - Загрузка файлов перетаскиванием (drag & drop)
-- Графический интерфейс, командная строка не нужна
+- Простой графический интерфейс, командная строка не нужна
 
 ### Требования
 
@@ -126,75 +111,63 @@ See the `examples/` folder:
 
 ### Установка
 
-```bash
+```
 pip install customtkinter tkinterdnd2 pytz
 python app.py
 ```
 
-Или скачайте готовый **[исполняемый файл для Windows →](../../releases/latest)**
+Или скачайте готовый **[исполняемый файл для Windows](../../releases/latest)** — Python не нужен.
 
-### Пошаговая инструкция
+### Формат файлов прибора
 
-1. **Запустите** `app.py` или `.exe`
-2. **Добавьте файлы GPS** в левую панель — перетащите или нажмите «Добавить»
-3. **Добавьте файлы ADCP** в правую панель
-4. **Задайте часовой пояс** отдельно для GPS и для прибора
-5. **Задайте лаг трека**, если часы GPS и ADCP рассинхронизированы  
-   *(например, `-5` означает, что GPS отстаёт от прибора на 5 секунд)*
-6. **Выберите папку и имя выходного файла**
-7. **Нажмите «Обработать»**
-
-При обработке нескольких файлов к именам добавляются суффиксы: `output_1.txt`, `output_2.txt` и т.д.
-
-### Форматы входных файлов
-
-#### Файлы координат GPS
-
-**GPX** — стандартный формат GPS-трека. Экспорт из Garmin Connect, OsmAnd, Strava и др.
-
-Пример из `examples/gps_track_example.gpx` (экспорт Organic Maps):
-```xml
-<trkpt lat="61.665590" lon="50.835940">
-  <time>2025-05-03T09:51:10Z</time>
-</trkpt>
-```
-
-**TXT с временными метками** (`lat,lon,ISO8601time`):
-```
-61.665590,50.835940,2025-05-03T09:51:10Z
-61.665620,50.835980,2025-05-03T09:51:11Z
-```
-
-**TXT по номерам точек** (`point_id,lat,lon`):
-```
-1,61.665590,50.835940
-2,61.665620,50.835980
-```
-Используется, если каждый створ имеет фиксированный номер, совпадающий с номером в файле прибора.
-
-#### Файлы прибора (RiverRay ASCII)
-
-Каждый ансамбль начинается строкой-заголовком (дата/время + номер точки), за которой следуют строки данных. Программа заменяет координаты на **второй строке из 5 чисел** каждого ансамбля:
+Каждый блок измерения в файле прибора выглядит так:
 
 ```
-25 5 3 7 29 38 23    28      1   -2.260   -1.910   98.160    4.380
-                                   ↑ lon    ↑ lat   ← заменяются
+25 5 3 7 29 38 23  28  1  -2.260  -1.910  98.160  4.380
+25.11  -9.27  -1.13  0.14  0.00  0.00  0.00  0.00  3.97  3.76  3.63  4.02
+0.00         0.00         0.00         0.00         0.00
+30000.0000000 30000.0000000 -32768   -32768         0.0    ← координаты здесь
+-0.0  -0.0  -0.0  0.0  0.0  0.0  0.0  0.30  2.85
+20 cm BT dB 0.46  0.150
+  0.30   60.09   215.46  ...
 ```
-Формат строки: `YY MM DD HH mm SS cs  point_id  channel  lon  lat  ...`
+
+Первая строка содержит временну́ю метку (`YY MM DD HH mm SS cs`) и номер точки. Строка с координатами — **вторая строка из пяти чисел** в блоке. Когда встроенный GPS не поймал сигнал, там стоят значения `30000.0000000` — программа заменяет их на координаты из внешнего трека.
+
+### Форматы файлов координат
+
+**GPX** — стандартный трек, экспортированный из Garmin, OsmAnd и др.
+
+**TXT с временными метками:**
+```
+55.123456,48.654321,2025-05-15T10:23:45Z
+55.123490,48.654400,2025-05-15T10:23:46Z
+```
+
+**TXT по номерам точек:**
+```
+1,55.123456,48.654321
+2,55.124000,48.655000
+```
+
+### Использование
+
+1. Запустить `app.py` или `.exe`
+2. Добавить **файлы координат** (GPX или TXT) в левую панель
+3. Добавить **файлы прибора** (TXT) в правую панель
+4. Задать корректный **часовой пояс** для GPS и прибора
+5. При необходимости задать **лаг трека** (например, `-5` — GPS отстаёт на 5 с)
+6. Выбрать выходной файл
+7. Нажать **Обработать**
+
+При обработке нескольких файлов прибора к именам выходных файлов добавляются суффиксы `_1`, `_2`, ...
 
 ### Логика сопоставления
 
-Временна́я метка каждого ансамбля переводится в UTC и сопоставляется с ближайшей точкой GPS-трека в пределах **±10 секунд**. Если подходящая точка не найдена — исходные координаты сохраняются без изменений.
-
-### Примеры
-
-Папка `examples/`:
-- `gps_track_example.gpx` — реальный GPX-трек, записанный в Organic Maps
-- `instrument_example.txt` — реальный фрагмент ASCII-файла RiverRay ADCP
+Временна́я метка каждого измерения переводится в UTC и сопоставляется с треком GPS. Используется ближайшая точка трека в пределах **±10 секунд**. Если подходящая точка не найдена — исходная строка остаётся без изменений.
 
 ---
 
 ## License / Лицензия
 
-MIT License — Copyright (c) 2026 Александр Иннокентьев  
-See [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
